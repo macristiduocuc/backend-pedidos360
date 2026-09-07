@@ -1,0 +1,34 @@
+services:
+  db-pedidos:
+    image: postgres:18-alpine
+    container_name: pedidos360-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pedidos360_db
+      POSTGRES_USER: pedidos360
+      POSTGRES_PASSWORD: pedidos360
+    ports:
+      - "5432:5432"
+    volumes:
+      - pedidos360_pgdata:/var/lib/postgresql
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pedidos360 -d pedidos360_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pedidos360-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@pedidos360.com
+      PGADMIN_DEFAULT_PASSWORD: pedidos360
+    ports:
+      - "5050:80"
+    depends_on:
+      - db-pedidos
+
+volumes:
+  pedidos360_pgdata:

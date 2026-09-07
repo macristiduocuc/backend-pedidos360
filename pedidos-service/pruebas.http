@@ -1,0 +1,37 @@
+### Bajar stock de "Torta Tres Leches"
+
+GET http://localhost:8081/api/productos/1
+
+### Cambiar estado en cocina
+
+PATCH http://localhost:8082/api/pedidos/1/estado
+Content-Type: application/json
+
+{ "nuevoEstado": "En preparación" }
+
+### Marcar como entregado
+
+PATCH http://localhost:8082/api/pedidos/1/entregar
+
+### Ver el log de auditoría
+
+GET http://localhost:8082/api/eventos-auditoria
+
+### Probar el rechazo por falta de stock
+
+POST http://localhost:8082/api/pedidos
+Content-Type: application/json
+
+{
+  "clienteNombre": "Prueba Stock",
+  "clienteCorreo": "stock@test.com",
+  "localId": 4,
+  "modalidad": "Retiro en tienda",
+  "items": [
+    { "productoId": 4, "cantidad": 9999 }
+  ]
+}
+
+###
+
+GET http://localhost:8082/api/pedidos/2

@@ -1,0 +1,1 @@
+'docker compose up -d levanta Postgres 18 con el catálogo de ejemplo ya cargado en localhost:5432 (usuario/clave: pedidos360/pedidos360)'
