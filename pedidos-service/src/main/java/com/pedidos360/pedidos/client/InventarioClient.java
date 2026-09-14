@@ -6,6 +6,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 /** Encapsula toda la comunicación HTTP con el microservicio de Inventario. */
@@ -18,15 +20,30 @@ public class InventarioClient {
         this.restClient = RestClient.create(inventarioUrl);
     }
 
+    /**
+     * Inventario ahora exige un JWT válido. Como esta llamada ocurre DENTRO de una
+     * petición HTTP que ya trae el Authorization del cliente, simplemente lo
+     * reenviamos ("token relay") en vez de manejar credenciales propias del servicio.
+     */
+    private String tokenEntrante() {
+        var attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) return null;
+        return attrs.getRequest().getHeader("Authorization");
+    }
+
     public ProductoInventarioResponse obtenerProducto(Long productoId) {
         try {
             return restClient.get()
                     .uri("/api/productos/{id}", productoId)
+                    .header("Authorization", tokenEntrante())
                     .retrieve()
                     .body(ProductoInventarioResponse.class);
         } catch (RestClientResponseException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El producto " + productoId + " no existe en Inventario");
+            }
+            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED || e.getStatusCode() == HttpStatus.FORBIDDEN) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autorizado para consultar Inventario");
             }
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Inventario no respondió correctamente");
         }
@@ -37,6 +54,7 @@ public class InventarioClient {
         try {
             restClient.patch()
                     .uri("/api/productos/{id}/reservar-stock", productoId)
+                    .header("Authorization", tokenEntrante())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(new ReservaStockRequest(cantidad))
                     .retrieve()
@@ -45,6 +63,9 @@ public class InventarioClient {
             if (e.getStatusCode() == HttpStatus.CONFLICT) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "No queda stock suficiente de \"" + productoId + "\" para completar el pedido");
+            }
+            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED || e.getStatusCode() == HttpStatus.FORBIDDEN) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No autorizado para reservar stock en Inventario");
             }
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Inventario no respondió correctamente al reservar stock");
         }
