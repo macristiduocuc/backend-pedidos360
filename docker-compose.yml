@@ -30,5 +30,36 @@ services:
     depends_on:
       - db-pedidos
 
+  inventario:
+    build: ./inventario-service
+    container_name: pedidos360-inventario
+    restart: unless-stopped
+    depends_on:
+      db-pedidos:
+        condition: service_healthy
+    environment:
+      # Dentro de la red de Docker, la base no se llama "localhost" sino
+      # como el servicio de arriba: "db-pedidos".
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-pedidos:5432/pedidos360_db
+    ports:
+      - "8081:8081"
+
+  pedidos:
+    build: ./pedidos-service
+    container_name: pedidos360-pedidos
+    restart: unless-stopped
+    depends_on:
+      db-pedidos:
+        condition: service_healthy
+      inventario:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db-pedidos:5432/pedidos360_db
+      # Mismo caso: pedidos-service le habla a inventario por el nombre
+      # del servicio, no por localhost:8081.
+      INVENTARIO_SERVICE_URL: http://inventario:8081
+    ports:
+      - "8082:8082"
+
 volumes:
   pedidos360_pgdata:
