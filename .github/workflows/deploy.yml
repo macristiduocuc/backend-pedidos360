@@ -17,8 +17,8 @@ jobs:
           username: ${{ secrets.BACKEND_EC2_USERNAME }}
           key: ${{ secrets.BACKEND_EC2_SSH_KEY }}
           script: |
+            set -e
+            rm -rf ~/backend-pedidos360
+            git clone --branch develop https://github.com/macristiduocuc/backend-pedidos360.git ~/backend-pedidos360
             cd ~/backend-pedidos360
-            git fetch origin
-            git checkout develop || git checkout -b develop origin/develop
-            git reset --hard origin/develop
             docker compose up -d --build
