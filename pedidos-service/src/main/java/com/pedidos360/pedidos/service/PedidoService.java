@@ -93,6 +93,18 @@ public class PedidoService {
         return guardado;
     }
 
+    /** Gestión de ventas (Auditoría): anula un pedido mal hecho, duplicado o fraudulento. */
+    public Pedido cancelarPedido(Long id) {
+        Pedido pedido = buscarOFallar(id);
+        if ("Entregado".equals(pedido.getEstado())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede cancelar un pedido ya entregado");
+        }
+        pedido.setEstado("Cancelado");
+        Pedido guardado = pedidoRepository.save(pedido);
+        registrarEvento(id, "Pedido #" + id + " cancelado.", "auditoria");
+        return guardado;
+    }
+
     public Pedido buscarOFallar(Long id) {
         return pedidoRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido " + id + " no existe"));

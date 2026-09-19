@@ -42,6 +42,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH, "/api/pedidos/*/estado").hasRole("COCINA")
                 // Despacho: marcar entregado.
                 .requestMatchers(HttpMethod.PATCH, "/api/pedidos/*/entregar").hasRole("DESPACHO")
+                // Auditoría: gestión de ventas (cancelar) y dashboards.
+                .requestMatchers(HttpMethod.PATCH, "/api/pedidos/*/cancelar").hasRole("AUDITORIA")
                 // Auditoría: dashboards de supervisión.
                 .requestMatchers(HttpMethod.GET, "/api/pedidos/resumen").hasRole("AUDITORIA")
                 .requestMatchers(HttpMethod.GET, "/api/eventos-auditoria").hasRole("AUDITORIA")

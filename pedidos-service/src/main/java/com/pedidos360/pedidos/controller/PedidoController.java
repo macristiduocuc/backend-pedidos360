@@ -61,6 +61,12 @@ public class PedidoController {
     public PedidoResponse entregar(@PathVariable Long id) {
         return PedidoResponse.desde(pedidoService.marcarEntregado(id));
     }
+
+    /** Gestión de ventas (Auditoría): anula un pedido. */
+    @PatchMapping("/{id}/cancelar")
+    public PedidoResponse cancelar(@PathVariable Long id) {
+        return PedidoResponse.desde(pedidoService.cancelarPedido(id));
+    }
     /** Para el dashboard de Auditoría: totales generales + ventas agrupadas por local. */
     @GetMapping("/resumen")
     public ResumenVentas resumen() {
