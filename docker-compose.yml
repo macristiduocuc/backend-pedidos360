@@ -30,6 +30,60 @@ services:
     depends_on:
       - db-pedidos
 
+  # ---------------------------------------------------------------
+  # RabbitMQ: clúster de 2 nodos (rabbit1 + rabbit2)
+  # Las credenciales vienen del archivo .env (local) o de
+  # ~/pedidos360.env (servidor). Nunca se suben al repositorio.
+  # ---------------------------------------------------------------
+  rabbit1:
+    image: rabbitmq:3.13-management
+    container_name: pedidos360-rabbit1
+    hostname: rabbit1
+    restart: unless-stopped
+    environment:
+      RABBITMQ_NODENAME: rabbit@rabbit1
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:?Falta RABBITMQ_ERLANG_COOKIE en el .env}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Falta RABBITMQ_USER en el .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Falta RABBITMQ_PASSWORD en el .env}
+    ports:
+      # Solo se publica la consola web (15672). El puerto AMQP (5672) NO se publica:
+      # los microservicios llegan a RabbitMQ por la red interna de Docker.
+      - "15672:15672"
+    volumes:
+      - rabbit1_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  rabbit2:
+    image: rabbitmq:3.13-management
+    container_name: pedidos360-rabbit2
+    hostname: rabbit2
+    restart: unless-stopped
+    environment:
+      RABBITMQ_NODENAME: rabbit@rabbit2
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:?Falta RABBITMQ_ERLANG_COOKIE en el .env}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Falta RABBITMQ_USER en el .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Falta RABBITMQ_PASSWORD en el .env}
+    volumes:
+      - rabbit2_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    # rabbit2 espera a que rabbit1 esté arriba para unirse a su clúster
+    # (evita que los dos nodos arranquen a la vez y formen clústeres separados).
+    depends_on:
+      rabbit1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
   inventario:
     build: ./inventario-service
     container_name: pedidos360-inventario
@@ -37,10 +91,18 @@ services:
     depends_on:
       db-pedidos:
         condition: service_healthy
+      rabbit1:
+        condition: service_healthy
+      rabbit2:
+        condition: service_healthy
     environment:
       # Dentro de la red de Docker, la base no se llama "localhost" sino
       # como el servicio de arriba: "db-pedidos".
       SPRING_DATASOURCE_URL: jdbc:postgresql://db-pedidos:5432/pedidos360_db
+      # Spring AMQP se conecta a ambos nodos; si uno cae, usa el otro.
+      SPRING_RABBITMQ_ADDRESSES: rabbit1:5672,rabbit2:5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     ports:
       - "8081:8081"
 
@@ -53,13 +115,22 @@ services:
         condition: service_healthy
       inventario:
         condition: service_started
+      rabbit1:
+        condition: service_healthy
+      rabbit2:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db-pedidos:5432/pedidos360_db
       # Mismo caso: pedidos-service le habla a inventario por el nombre
       # del servicio, no por localhost:8081.
       INVENTARIO_SERVICE_URL: http://inventario:8081
+      SPRING_RABBITMQ_ADDRESSES: rabbit1:5672,rabbit2:5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     ports:
       - "8082:8082"
 
 volumes:
   pedidos360_pgdata:
+  rabbit1_data:
+  rabbit2_data:
