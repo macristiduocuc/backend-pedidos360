@@ -12,6 +12,7 @@ import com.pedidos360.inventario.repository.ProductoRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,6 +36,7 @@ public class ProductoController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<ProductoResponse> listar(@RequestParam(required = false) String categoria) {
         List<Producto> productos = (categoria == null || categoria.isBlank())
                 ? productoRepository.findByActivoTrue()
@@ -44,11 +46,13 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ProductoResponse obtener(@PathVariable Long id) {
         return ProductoResponse.desde(buscarOFallar(id));
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('AUDITORIA')")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductoResponse crear(@Valid @RequestBody ProductoRequest request) {
         Producto producto = new Producto();
@@ -57,6 +61,7 @@ public class ProductoController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('AUDITORIA')")
     public ProductoResponse actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
         Producto producto = buscarOFallar(id);
         aplicarRequest(producto, request);
@@ -64,6 +69,7 @@ public class ProductoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('AUDITORIA')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         Producto producto = buscarOFallar(id);
         // Baja lógica: no borramos la fila (hay pedidos históricos que la referencian).
@@ -77,6 +83,7 @@ public class ProductoController {
      * Devuelve 409 si no alcanza el stock; el UPDATE de reservarStock() es atómico.
      */
     @PatchMapping("/{id}/reservar-stock")
+    @PreAuthorize("isAuthenticated()")
     @Transactional
     public ResponseEntity<Void> reservarStock(@PathVariable Long id, @Valid @RequestBody ReservaStockRequest request) {
         buscarOFallar(id); // 404 si el producto no existe

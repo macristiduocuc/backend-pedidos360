@@ -2,6 +2,7 @@ package com.pedidos360.inventario.controller;
 
 import com.pedidos360.inventario.model.Categoria;
 import com.pedidos360.inventario.repository.CategoriaRepository;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class CategoriaController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<Categoria> listar() {
         return categoriaRepository.findAll();
     }

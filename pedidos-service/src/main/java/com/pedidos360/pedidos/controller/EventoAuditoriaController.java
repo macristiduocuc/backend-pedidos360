@@ -2,6 +2,7 @@ package com.pedidos360.pedidos.controller;
 
 import com.pedidos360.pedidos.model.EventoAuditoria;
 import com.pedidos360.pedidos.repository.EventoAuditoriaRepository;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +20,7 @@ public class EventoAuditoriaController {
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('AUDITORIA')")
     public List<EventoAuditoria> listar() {
         return eventoRepository.findAllByOrderByFechaDesc();
     }
