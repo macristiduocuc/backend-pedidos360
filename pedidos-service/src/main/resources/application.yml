@@ -26,6 +26,9 @@ spring:
   # (definidos en docker-compose.yml) reemplazan estos valores.
   rabbitmq:
     addresses: localhost:5672
+    # Si RabbitMQ no responde, el intento de conexión se abandona rápido para que
+    # crear un pedido no se quede esperando al broker.
+    connection-timeout: 3s
 
 server:
   port: 8082
@@ -70,9 +73,9 @@ app:
       dlq: alertas.stock.dlq
       binding: stock.bajo.*
 
-    # Prefijos de las routing keys que publica este servicio. La clave final se
-    # arma como <prefijo>.local<id> (ejemplo: pedido.creado.local3).
+    # Routing keys que publica este servicio. {localId} se reemplaza por el id del
+    # local del pedido (ejemplo: pedido.creado.local3).
     routing-key:
-      pedido-creado: pedido.creado
-      pedido-estado: pedido.estado
-      pedido-cancelado: pedido.cancelado
+      pedido-creado: pedido.creado.local{localId}
+      pedido-estado: pedido.estado.local{localId}
+      pedido-cancelado: pedido.cancelado.local{localId}
