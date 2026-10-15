@@ -29,6 +29,12 @@ spring:
     # Si RabbitMQ no responde, el intento de conexión se abandona rápido para que
     # crear un pedido no se quede esperando al broker.
     connection-timeout: 3s
+    listener:
+      simple:
+        # ACK manual: cada consumidor confirma (ack) o rechaza (nack) cada mensaje explícitamente.
+        acknowledge-mode: manual
+        # Un mensaje a la vez por consumidor: si falla, no se arrastran otros mensajes sin confirmar.
+        prefetch: 1
 
 server:
   port: 8082
@@ -72,6 +78,12 @@ app:
       cola: alertas.stock.q
       dlq: alertas.stock.dlq
       binding: stock.bajo.*
+
+    # Política de los consumidores ante errores recuperables (ej.: la base de datos no responde).
+    # Después de max-intentos fallidos, el mensaje se rechaza (nack sin reencolar) y pasa a su DLQ.
+    consumidor:
+      max-intentos: 3
+      espera-reintento: 500ms
 
     # Routing keys que publica este servicio. {localId} se reemplaza por el id del
     # local del pedido (ejemplo: pedido.creado.local3).
