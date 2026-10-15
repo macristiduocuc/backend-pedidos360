@@ -23,4 +23,8 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     @Modifying
     @Query("UPDATE Producto p SET p.stock = p.stock - :cantidad WHERE p.id = :id AND p.stock >= :cantidad")
     int reservarStock(@Param("id") Long id, @Param("cantidad") Integer cantidad);
+
+    /** Lee el stock directo de la base de datos (no el de la entidad ya cargada, que quedaría desactualizado). */
+    @Query("SELECT p.stock FROM Producto p WHERE p.id = :id")
+    Integer stockActual(@Param("id") Long id);
 }

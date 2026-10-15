@@ -9,6 +9,7 @@ import com.pedidos360.inventario.model.Producto;
 import com.pedidos360.inventario.repository.CategoriaRepository;
 import com.pedidos360.inventario.repository.LocalRepository;
 import com.pedidos360.inventario.repository.ProductoRepository;
+import com.pedidos360.inventario.service.StockService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,13 +27,16 @@ public class ProductoController {
     private final ProductoRepository productoRepository;
     private final CategoriaRepository categoriaRepository;
     private final LocalRepository localRepository;
+    private final StockService stockService;
 
     public ProductoController(ProductoRepository productoRepository,
                                CategoriaRepository categoriaRepository,
-                               LocalRepository localRepository) {
+                               LocalRepository localRepository,
+                               StockService stockService) {
         this.productoRepository = productoRepository;
         this.categoriaRepository = categoriaRepository;
         this.localRepository = localRepository;
+        this.stockService = stockService;
     }
 
     @GetMapping
@@ -81,16 +85,12 @@ public class ProductoController {
     /**
      * Llamado por el microservicio de Pedidos al confirmar una compra.
      * Devuelve 409 si no alcanza el stock; el UPDATE de reservarStock() es atómico.
+     * La lógica (y la alerta de stock bajo) está en StockService.
      */
     @PatchMapping("/{id}/reservar-stock")
     @PreAuthorize("isAuthenticated()")
-    @Transactional
     public ResponseEntity<Void> reservarStock(@PathVariable Long id, @Valid @RequestBody ReservaStockRequest request) {
-        buscarOFallar(id); // 404 si el producto no existe
-        int filasActualizadas = productoRepository.reservarStock(id, request.cantidad());
-        if (filasActualizadas == 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock suficiente para el producto " + id);
-        }
+        stockService.reservar(id, request.cantidad());
         return ResponseEntity.ok().build();
     }
 
