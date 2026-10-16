@@ -49,6 +49,8 @@ public class SecurityConfig {
                 // Auditoría: dashboards de supervisión.
                 .requestMatchers(HttpMethod.GET, "/api/pedidos/resumen").hasRole("AUDITORIA")
                 .requestMatchers(HttpMethod.GET, "/api/eventos-auditoria").hasRole("AUDITORIA")
+                // Notificaciones (campanita): el cliente ve las suyas y Auditoría ve las alertas de stock.
+                .requestMatchers("/api/notificaciones/**").hasAnyRole("CLIENTE", "AUDITORIA")
                 // Listados generales de pedidos: cocina, despacho y auditoría los necesitan cada uno para su panel.
                 .requestMatchers(HttpMethod.GET, "/api/pedidos/**").hasAnyRole("COCINA", "DESPACHO", "AUDITORIA")
                 .anyRequest().authenticated()
@@ -76,5 +78,5 @@ public class SecurityConfig {
                     .toList();
         });
         return converter;
-    }
 }
+    }
