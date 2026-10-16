@@ -130,6 +130,24 @@ services:
     ports:
       - "8082:8082"
 
+  # Microservicio administrador de RabbitMQ: crea y elimina colas, exchanges y bindings por REST.
+  # No usa base de datos; solo se conecta al clúster de RabbitMQ.
+  rabbit-admin:
+    build: ./rabbit-admin-service
+    container_name: pedidos360-rabbit-admin
+    restart: unless-stopped
+    depends_on:
+      rabbit1:
+        condition: service_healthy
+      rabbit2:
+        condition: service_healthy
+    environment:
+      SPRING_RABBITMQ_ADDRESSES: rabbit1:5672,rabbit2:5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    ports:
+      - "8083:8083"
+
 volumes:
   pedidos360_pgdata:
   rabbit1_data:
