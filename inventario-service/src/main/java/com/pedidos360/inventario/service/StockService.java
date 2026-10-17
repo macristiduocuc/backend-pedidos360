@@ -13,9 +13,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 
 /**
- * Reserva de stock. Es la misma lógica que antes vivía en ProductoController, con una
- * diferencia: cuando la reserva deja el producto con poco stock, anuncia una alerta
- * (sin conocer RabbitMQ: quien la publica es AlertaStockPublisher, tras el commit).
+ * Reserva de stock y alertas de stock bajo. Cuando un cambio de stock deja el producto con poco
+ * stock, anuncia una alerta (sin conocer RabbitMQ: quien la publica es AlertaStockPublisher, tras
+ * el commit). El cambio puede venir de una compra (reservar) o de que Auditoría edite el producto
+ * en la gestión de inventario (evaluarAlerta).
  */
 @Service
 public class StockService {
@@ -43,19 +44,25 @@ public class StockService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock suficiente para el producto " + id);
         }
 
-        anunciarAlertaSiCorresponde(producto, cantidad);
+        int stockDespues = productoRepository.stockActual(producto.getId());
+        evaluarAlerta(producto, stockDespues + cantidad, stockDespues);
     }
 
     /**
-     * Avisa solo cuando la reserva hace que el producto CRUCE el umbral (de "normal" a "poco stock")
-     * o cuando se agota. Así no se genera una alerta por cada compra de un producto que ya estaba bajo.
+     * Avisa solo cuando el cambio hace que el producto CRUCE el umbral (de "normal" a "poco stock")
+     * o cuando se agota. Así no se genera una alerta por cada cambio de un producto que ya estaba bajo,
+     * ni cuando se edita otro dato (precio, nombre...) y el stock no cambia.
+     *
+     * @param stockAntes stock antes del cambio; null si el producto es nuevo
      */
-    private void anunciarAlertaSiCorresponde(Producto producto, int cantidad) {
+    public void evaluarAlerta(Producto producto, Integer stockAntes, int stockDespues) {
         int umbral = props.umbralStockBajo();
-        int stockDespues = productoRepository.stockActual(producto.getId());
-        int stockAntes = stockDespues + cantidad;
+        if (stockAntes != null && stockAntes == stockDespues) {
+            return;
+        }
+        int antes = stockAntes != null ? stockAntes : umbral;
 
-        boolean cruzoElUmbral = stockAntes >= umbral && stockDespues < umbral;
+        boolean cruzoElUmbral = antes >= umbral && stockDespues < umbral;
         boolean seAgoto = stockDespues == 0;
 
         if (cruzoElUmbral || seAgoto) {

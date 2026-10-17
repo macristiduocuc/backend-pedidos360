@@ -27,15 +27,18 @@ class StockServiceTest {
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final StockService service = new StockService(productoRepository, eventPublisher, new InventarioProperties(10));
 
-    private void productoConStockAntes(int stockAntes, int cantidad) {
+    private Producto producto() {
         Local local = new Local();
         local.setId(3L);
         Producto producto = new Producto();
         producto.setId(1L);
         producto.setNombre("Empanada de pino");
         producto.setLocal(local);
+        return producto;
+    }
 
-        when(productoRepository.findById(1L)).thenReturn(Optional.of(producto));
+    private void productoConStockAntes(int stockAntes, int cantidad) {
+        when(productoRepository.findById(1L)).thenReturn(Optional.of(producto()));
         when(productoRepository.reservarStock(1L, cantidad)).thenReturn(1);
         when(productoRepository.stockActual(1L)).thenReturn(stockAntes - cantidad);
     }
@@ -93,6 +96,46 @@ class StockServiceTest {
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.reservar(1L, 5));
 
         assertEquals(409, error.getStatusCode().value());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    // ---- cambios hechos por Auditoría en la gestión de inventario ----
+
+    @Test
+    void siAuditoriaBajaElStockPorDebajoDelUmbralSeAnunciaLaAlerta() {
+        service.evaluarAlerta(producto(), 15, 9);
+
+        ArgumentCaptor<AlertaStockEvento> captor = ArgumentCaptor.forClass(AlertaStockEvento.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(9, captor.getValue().stockActual());
+        assertEquals(1L, captor.getValue().productoId());
+    }
+
+    @Test
+    void siSoloSeEditaOtroDatoYElStockNoCambiaNoSeAnunciaNada() {
+        service.evaluarAlerta(producto(), 5, 5);
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void siAuditoriaSubeElStockNoSeAnunciaNada() {
+        service.evaluarAlerta(producto(), 4, 20);
+
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void unProductoNuevoConPocoStockAnunciaLaAlerta() {
+        service.evaluarAlerta(producto(), null, 6);
+
+        verify(eventPublisher).publishEvent(any(AlertaStockEvento.class));
+    }
+
+    @Test
+    void unProductoNuevoConMuchoStockNoAnunciaNada() {
+        service.evaluarAlerta(producto(), null, 50);
+
         verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 

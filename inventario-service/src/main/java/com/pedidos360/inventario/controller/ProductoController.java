@@ -61,15 +61,20 @@ public class ProductoController {
     public ProductoResponse crear(@Valid @RequestBody ProductoRequest request) {
         Producto producto = new Producto();
         aplicarRequest(producto, request);
-        return ProductoResponse.desde(productoRepository.save(producto));
+        Producto guardado = productoRepository.save(producto);
+        stockService.evaluarAlerta(guardado, null, guardado.getStock());
+        return ProductoResponse.desde(guardado);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('AUDITORIA')")
     public ProductoResponse actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
         Producto producto = buscarOFallar(id);
+        int stockAntes = producto.getStock();
         aplicarRequest(producto, request);
-        return ProductoResponse.desde(productoRepository.save(producto));
+        Producto guardado = productoRepository.save(producto);
+        stockService.evaluarAlerta(guardado, stockAntes, guardado.getStock());
+        return ProductoResponse.desde(guardado);
     }
 
     @DeleteMapping("/{id}")
