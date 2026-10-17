@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -19,6 +20,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
@@ -47,6 +49,8 @@ public class SecurityConfig {
                 // Auditoría: dashboards de supervisión.
                 .requestMatchers(HttpMethod.GET, "/api/pedidos/resumen").hasRole("AUDITORIA")
                 .requestMatchers(HttpMethod.GET, "/api/eventos-auditoria").hasRole("AUDITORIA")
+                // Notificaciones (campanita): el cliente ve las suyas y Auditoría ve las alertas de stock.
+                .requestMatchers("/api/notificaciones/**").hasAnyRole("CLIENTE", "AUDITORIA")
                 // Listados generales de pedidos: cocina, despacho y auditoría los necesitan cada uno para su panel.
                 .requestMatchers(HttpMethod.GET, "/api/pedidos/**").hasAnyRole("COCINA", "DESPACHO", "AUDITORIA")
                 .anyRequest().authenticated()
@@ -74,5 +78,5 @@ public class SecurityConfig {
                     .toList();
         });
         return converter;
-    }
 }
+    }

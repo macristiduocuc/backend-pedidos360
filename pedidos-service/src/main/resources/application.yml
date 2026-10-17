@@ -1,0 +1,93 @@
+spring:
+  application:
+    name: pedidos-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/pedidos360_db
+    username: pedidos360
+    password: pedidos360
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Seguridad: valida el JWT emitido por Azure AD (login corporativo del frontend).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/93cc35f5-cb03-4022-ad90-77cbe1ca3267/v2.0
+
+  # Conexión a RabbitMQ. En Docker, SPRING_RABBITMQ_ADDRESSES / _USERNAME / _PASSWORD
+  # (definidos en docker-compose.yml) reemplazan estos valores.
+  rabbitmq:
+    addresses: localhost:5672
+    # Si RabbitMQ no responde, el intento de conexión se abandona rápido para que
+    # crear un pedido no se quede esperando al broker.
+    connection-timeout: 3s
+    listener:
+      simple:
+        # ACK manual: cada consumidor confirma (ack) o rechaza (nack) cada mensaje explícitamente.
+        acknowledge-mode: manual
+        # Un mensaje a la vez por consumidor: si falla, no se arrastran otros mensajes sin confirmar.
+        prefetch: 1
+
+server:
+  port: 8082
+
+# URL del microservicio de Inventario. Cuando lo despleguemos en EC2 y pongamos
+# el API Gateway en el medio, este valor pasa a ser el único lugar que cambia.
+inventario:
+  service:
+    url: http://localhost:8081
+
+pedidos360:
+  security:
+    audience: 0f50a8bc-f7a7-4dde-9e44-9f05fb077cc0
+
+# ---------------------------------------------------------------------------
+# MENSAJERÍA (RabbitMQ): único lugar donde se definen los nombres de exchanges,
+# colas, DLQ, bindings y routing keys. Ninguna clase Java tiene nombres escritos.
+# ---------------------------------------------------------------------------
+app:
+  mensajeria:
+    exchange:
+      principal: pedidos.exchange      # topic: eventos de negocio
+      dlx: pedidos.dlx                 # direct: mensajes que no se pudieron procesar
+
+    # Caso de uso 1: ticket de comanda para cocina (cuando se crea un pedido)
+    comanda:
+      cola: cocina.comanda.q
+      dlq: cocina.comanda.dlq
+      binding: pedido.creado.*
+
+    # Caso de uso 2: notificación al cliente (creación, cambios de estado, cancelación)
+    notificacion-cliente:
+      cola: cliente.notificacion.q
+      dlq: cliente.notificacion.dlq
+      binding-creado: pedido.creado.*
+      binding-estado: pedido.estado.*
+      binding-cancelado: pedido.cancelado.*
+
+    # Caso de uso 3: alerta de stock bajo (la publica inventario-service)
+    alerta-stock:
+      cola: alertas.stock.q
+      dlq: alertas.stock.dlq
+      binding: stock.bajo.*
+
+    # Política de los consumidores ante errores recuperables (ej.: la base de datos no responde).
+    # Después de max-intentos fallidos, el mensaje se rechaza (nack sin reencolar) y pasa a su DLQ.
+    consumidor:
+      max-intentos: 3
+      espera-reintento: 500ms
+
+    # Routing keys que publica este servicio. {localId} se reemplaza por el id del
+    # local del pedido (ejemplo: pedido.creado.local3).
+    routing-key:
+      pedido-creado: pedido.creado.local{localId}
+      pedido-estado: pedido.estado.local{localId}
+      pedido-cancelado: pedido.cancelado.local{localId}

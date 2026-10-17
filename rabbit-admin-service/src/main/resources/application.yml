@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: rabbit-admin-service
+
+  # Seguridad: valida el JWT emitido por Azure AD (login corporativo del frontend).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/93cc35f5-cb03-4022-ad90-77cbe1ca3267/v2.0
+
+  # Conexión a RabbitMQ. En Docker, SPRING_RABBITMQ_ADDRESSES / _USERNAME / _PASSWORD
+  # (definidos en docker-compose.yml) reemplazan estos valores.
+  rabbitmq:
+    addresses: localhost:5672
+    connection-timeout: 3s
+
+server:
+  port: 8083
+
+pedidos360:
+  security:
+    audience: 0f50a8bc-f7a7-4dde-9e44-9f05fb077cc0
+
+app:
+  rabbit-admin:
+    # Recursos que forman la base del sistema de pedidos. La API NO permite eliminarlos,
+    # para que un clic equivocado no deje al sistema sin mensajería.
+    protegidos:
+      exchanges:
+        - pedidos.exchange
+        - pedidos.dlx
+      colas:
+        - cocina.comanda.q
+        - cocina.comanda.dlq
+        - cliente.notificacion.q
+        - cliente.notificacion.dlq
+        - alertas.stock.q
+        - alertas.stock.dlq
+        - inventario.reposicion.q
+        - inventario.reposicion.dlq

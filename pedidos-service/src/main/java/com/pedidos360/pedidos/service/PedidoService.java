@@ -4,17 +4,20 @@ import com.pedidos360.pedidos.client.InventarioClient;
 import com.pedidos360.pedidos.client.ProductoInventarioResponse;
 import com.pedidos360.pedidos.dto.ItemRequest;
 import com.pedidos360.pedidos.dto.PedidoRequest;
+import com.pedidos360.pedidos.event.PedidoEvento;
 import com.pedidos360.pedidos.model.EventoAuditoria;
 import com.pedidos360.pedidos.model.Pedido;
 import com.pedidos360.pedidos.model.PedidoItem;
 import com.pedidos360.pedidos.repository.EventoAuditoriaRepository;
 import com.pedidos360.pedidos.repository.PedidoRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,13 +27,16 @@ public class PedidoService {
     private final PedidoRepository pedidoRepository;
     private final EventoAuditoriaRepository eventoRepository;
     private final InventarioClient inventarioClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PedidoService(PedidoRepository pedidoRepository,
                           EventoAuditoriaRepository eventoRepository,
-                          InventarioClient inventarioClient) {
+                          InventarioClient inventarioClient,
+                          ApplicationEventPublisher eventPublisher) {
         this.pedidoRepository = pedidoRepository;
         this.eventoRepository = eventoRepository;
         this.inventarioClient = inventarioClient;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -74,26 +80,32 @@ public class PedidoService {
 
         Pedido guardado = pedidoRepository.save(pedido);
         registrarEvento(guardado.getId(), "Pedido #" + guardado.getId() + " creado por " + guardado.getClienteNombre() + ".", "cliente");
+        publicarEvento(PedidoEvento.Tipo.CREADO, guardado);
         return guardado;
     }
 
+    @Transactional
     public Pedido cambiarEstadoCocina(Long id, String nuevoEstado) {
         Pedido pedido = buscarOFallar(id);
         pedido.setEstado(nuevoEstado);
         Pedido guardado = pedidoRepository.save(pedido);
         registrarEvento(id, "Pedido #" + id + " pasó a " + nuevoEstado + ".", "cocina");
+        publicarEvento(PedidoEvento.Tipo.ESTADO_CAMBIADO, guardado);
         return guardado;
     }
 
+    @Transactional
     public Pedido marcarEntregado(Long id) {
         Pedido pedido = buscarOFallar(id);
         pedido.setEstado("Entregado");
         Pedido guardado = pedidoRepository.save(pedido);
         registrarEvento(id, "Pedido #" + id + " entregado.", "despacho");
+        publicarEvento(PedidoEvento.Tipo.ESTADO_CAMBIADO, guardado);
         return guardado;
     }
 
     /** Gestión de ventas (Auditoría): anula un pedido mal hecho, duplicado o fraudulento. */
+    @Transactional
     public Pedido cancelarPedido(Long id) {
         Pedido pedido = buscarOFallar(id);
         if ("Entregado".equals(pedido.getEstado())) {
@@ -102,6 +114,7 @@ public class PedidoService {
         pedido.setEstado("Cancelado");
         Pedido guardado = pedidoRepository.save(pedido);
         registrarEvento(id, "Pedido #" + id + " cancelado.", "auditoria");
+        publicarEvento(PedidoEvento.Tipo.CANCELADO, guardado);
         return guardado;
     }
 
@@ -112,5 +125,19 @@ public class PedidoService {
 
     private void registrarEvento(Long pedidoId, String descripcion, String rol) {
         eventoRepository.save(new EventoAuditoria(pedidoId, descripcion, rol));
+    }
+
+    /**
+     * Anuncia el evento (sin datos personales). Quien lo publica en RabbitMQ es
+     * PedidoEventoPublisher, una vez confirmada la transacción: este servicio no
+     * conoce nada de la mensajería.
+     */
+    private void publicarEvento(PedidoEvento.Tipo tipo, Pedido pedido) {
+        List<PedidoEvento.Item> items = pedido.getItems().stream()
+                .map(item -> new PedidoEvento.Item(item.getProductoId(), item.getCantidad()))
+                .toList();
+        eventPublisher.publishEvent(new PedidoEvento(
+                tipo, pedido.getId(), pedido.getLocalId(), pedido.getEstado(),
+                pedido.getTotal(), Instant.now(), items));
     }
 }

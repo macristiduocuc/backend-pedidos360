@@ -8,6 +8,7 @@ import com.pedidos360.pedidos.repository.PedidoRepository;
 import com.pedidos360.pedidos.service.PedidoService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ public class PedidoController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('COCINA', 'DESPACHO', 'AUDITORIA')")
     public List<PedidoResponse> listar(@RequestParam(required = false) String estado) {
         var pedidos = (estado == null || estado.isBlank())
                 ? pedidoRepository.findAllByOrderByCreadoEnDesc()
@@ -33,18 +35,23 @@ public class PedidoController {
         return pedidos.stream().map(PedidoResponse::desde).toList();
     }
 
+    /** Un cliente solo puede ver SUS pedidos: el correo de la URL debe coincidir con el del token. */
     @GetMapping("/cliente/{correo}")
+    @PreAuthorize("hasRole('CLIENTE') and @seguridad.esElMismoUsuario(#correo, authentication)")
     public List<PedidoResponse> misPedidos(@PathVariable String correo) {
         return pedidoRepository.findByClienteCorreoOrderByCreadoEnDesc(correo)
                 .stream().map(PedidoResponse::desde).toList();
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('COCINA', 'DESPACHO', 'AUDITORIA')")
     public PedidoResponse obtener(@PathVariable Long id) {
         return PedidoResponse.desde(pedidoService.buscarOFallar(id));
     }
 
+    /** Un cliente solo puede crear pedidos a su propio nombre (correo del body = correo del token). */
     @PostMapping
+    @PreAuthorize("hasRole('CLIENTE') and @seguridad.esElMismoUsuario(#request.clienteCorreo(), authentication)")
     @ResponseStatus(HttpStatus.CREATED)
     public PedidoResponse crear(@Valid @RequestBody PedidoRequest request) {
         return PedidoResponse.desde(pedidoService.crearPedido(request));
@@ -52,23 +59,27 @@ public class PedidoController {
 
     /** Usado por la pantalla de Cocina: Pendiente -> En preparación -> Hecho. */
     @PatchMapping("/{id}/estado")
+    @PreAuthorize("hasRole('COCINA')")
     public PedidoResponse cambiarEstado(@PathVariable Long id, @Valid @RequestBody CambiarEstadoRequest request) {
         return PedidoResponse.desde(pedidoService.cambiarEstadoCocina(id, request.nuevoEstado()));
     }
 
     /** Usado por la pantalla de Despacho. */
     @PatchMapping("/{id}/entregar")
+    @PreAuthorize("hasRole('DESPACHO')")
     public PedidoResponse entregar(@PathVariable Long id) {
         return PedidoResponse.desde(pedidoService.marcarEntregado(id));
     }
 
     /** Gestión de ventas (Auditoría): anula un pedido. */
     @PatchMapping("/{id}/cancelar")
+    @PreAuthorize("hasRole('AUDITORIA')")
     public PedidoResponse cancelar(@PathVariable Long id) {
         return PedidoResponse.desde(pedidoService.cancelarPedido(id));
     }
     /** Para el dashboard de Auditoría: totales generales + ventas agrupadas por local. */
     @GetMapping("/resumen")
+    @PreAuthorize("hasRole('AUDITORIA')")
     public ResumenVentas resumen() {
         var porLocal = pedidoRepository.ventasPorLocal();
         BigDecimal ventasTotales = porLocal.stream().map(v -> v.total()).reduce(BigDecimal.ZERO, BigDecimal::add);

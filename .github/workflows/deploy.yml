@@ -18,7 +18,10 @@ jobs:
           key: ${{ secrets.BACKEND_EC2_SSH_KEY }}
           script: |
             set -e
+            # Las credenciales viven FUERA de la carpeta clonada, porque el rm -rf
+            # de abajo la borra completa en cada deploy.
+            test -f ~/pedidos360.env || { echo "Falta ~/pedidos360.env en el servidor"; exit 1; }
             rm -rf ~/backend-pedidos360
             git clone --branch develop https://github.com/macristiduocuc/backend-pedidos360.git ~/backend-pedidos360
             cd ~/backend-pedidos360
-            docker compose up -d --build
+            docker compose --env-file ~/pedidos360.env up -d --build

@@ -9,9 +9,11 @@ import com.pedidos360.inventario.model.Producto;
 import com.pedidos360.inventario.repository.CategoriaRepository;
 import com.pedidos360.inventario.repository.LocalRepository;
 import com.pedidos360.inventario.repository.ProductoRepository;
+import com.pedidos360.inventario.service.StockService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,16 +27,20 @@ public class ProductoController {
     private final ProductoRepository productoRepository;
     private final CategoriaRepository categoriaRepository;
     private final LocalRepository localRepository;
+    private final StockService stockService;
 
     public ProductoController(ProductoRepository productoRepository,
                                CategoriaRepository categoriaRepository,
-                               LocalRepository localRepository) {
+                               LocalRepository localRepository,
+                               StockService stockService) {
         this.productoRepository = productoRepository;
         this.categoriaRepository = categoriaRepository;
         this.localRepository = localRepository;
+        this.stockService = stockService;
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<ProductoResponse> listar(@RequestParam(required = false) String categoria) {
         List<Producto> productos = (categoria == null || categoria.isBlank())
                 ? productoRepository.findByActivoTrue()
@@ -44,26 +50,35 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ProductoResponse obtener(@PathVariable Long id) {
         return ProductoResponse.desde(buscarOFallar(id));
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('AUDITORIA')")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductoResponse crear(@Valid @RequestBody ProductoRequest request) {
         Producto producto = new Producto();
         aplicarRequest(producto, request);
-        return ProductoResponse.desde(productoRepository.save(producto));
+        Producto guardado = productoRepository.save(producto);
+        stockService.evaluarAlerta(guardado, null, guardado.getStock());
+        return ProductoResponse.desde(guardado);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('AUDITORIA')")
     public ProductoResponse actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
         Producto producto = buscarOFallar(id);
+        int stockAntes = producto.getStock();
         aplicarRequest(producto, request);
-        return ProductoResponse.desde(productoRepository.save(producto));
+        Producto guardado = productoRepository.save(producto);
+        stockService.evaluarAlerta(guardado, stockAntes, guardado.getStock());
+        return ProductoResponse.desde(guardado);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('AUDITORIA')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         Producto producto = buscarOFallar(id);
         // Baja lógica: no borramos la fila (hay pedidos históricos que la referencian).
@@ -75,15 +90,12 @@ public class ProductoController {
     /**
      * Llamado por el microservicio de Pedidos al confirmar una compra.
      * Devuelve 409 si no alcanza el stock; el UPDATE de reservarStock() es atómico.
+     * La lógica (y la alerta de stock bajo) está en StockService.
      */
     @PatchMapping("/{id}/reservar-stock")
-    @Transactional
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> reservarStock(@PathVariable Long id, @Valid @RequestBody ReservaStockRequest request) {
-        buscarOFallar(id); // 404 si el producto no existe
-        int filasActualizadas = productoRepository.reservarStock(id, request.cantidad());
-        if (filasActualizadas == 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Sin stock suficiente para el producto " + id);
-        }
+        stockService.reservar(id, request.cantidad());
         return ResponseEntity.ok().build();
     }
 
