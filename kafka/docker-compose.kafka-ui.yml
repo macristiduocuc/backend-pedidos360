@@ -1,8 +1,3 @@
-# Kafka UI: consola web para administrar los brokers y los tópicos.
-# Se levanta DESPUÉS del clúster, porque usa su red (kafka_net):
-#   docker compose -f kafka/docker-compose.kafka.yml up -d
-#   docker compose -f kafka/docker-compose.kafka-ui.yml up -d
-# Consola: http://localhost:8080
 name: kafka-ui
 
 services:

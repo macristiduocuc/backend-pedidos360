@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: kafka-admin-service
+
+  # Seguridad: valida el JWT emitido por Azure AD (login corporativo del frontend).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/93cc35f5-cb03-4022-ad90-77cbe1ca3267/v2.0
+
+  # Brokers de Kafka. En Docker, SPRING_KAFKA_BOOTSTRAP_SERVERS (definido en el compose) reemplaza este valor.
+  kafka:
+    bootstrap-servers: localhost:9092,localhost:9093
+
+server:
+  port: 8084
+
+pedidos360:
+  security:
+    audience: 0f50a8bc-f7a7-4dde-9e44-9f05fb077cc0
+
+app:
+  kafka-admin:
+    # Cuánto se espera la respuesta de Kafka antes de dar la operación por fallida.
+    timeout-segundos: 10
+
+    # Tópicos del sistema: se crean solos al arrancar (si no existen) y la API NO permite eliminarlos.
+    # Cada flujo tiene su propia configuración según lo que necesita.
+    topicos-sistema:
+      # Historial de eventos de pedidos (auditoría): se conservan 7 días y luego se eliminan.
+      - nombre: pedidos.eventos
+        particiones: 3
+        replicacion: 2
+        configuracion:
+          "[cleanup.policy]": delete
+          "[retention.ms]": "604800000"
+      # Último stock de cada producto: con compactación se conserva solo el valor más reciente por clave.
+      - nombre: inventario.stock
+        particiones: 3
+        replicacion: 2
+        configuracion:
+          "[cleanup.policy]": compact
