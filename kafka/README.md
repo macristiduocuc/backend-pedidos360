@@ -10,6 +10,14 @@ Infraestructura de Kafka, separada del backend.
 
 ## Cómo levantarlo
 
+Una sola vez por computador (crea la red que comparten Kafka y el backend):
+
+```
+docker network create kafka_net
+```
+
+Después, en este orden:
+
 ```
 docker compose -f kafka/docker-compose.kafka.yml up -d
 docker compose -f kafka/docker-compose.kafka-ui.yml up -d
@@ -33,6 +41,7 @@ Los eventos quedan guardados en volúmenes; no se pierden al apagar. Para borrar
 
 ## Notas
 
+- El backend (`docker-compose.yml` de la raíz) también usa la red `kafka_net`. Si no vas a usar Kafka, igual debe existir (`docker network create kafka_net`).
 - Los tópicos no se crean automáticamente: los crea el administrador o Kafka UI.
 - Desde otros contenedores, los brokers están en `kafka-1:29092` y `kafka-2:29093` (red `kafka_net`).
 - Desde el computador, en `localhost:9092` y `localhost:9093`.

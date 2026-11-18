@@ -127,8 +127,14 @@ services:
       SPRING_RABBITMQ_ADDRESSES: rabbit1:5672,rabbit2:5672
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # Kafka: en local, los brokers de kafka/docker-compose.kafka.yml (red kafka_net).
+      # En el servidor, KAFKA_BOOTSTRAP_SERVERS (en ~/pedidos360.env) apunta a la instancia de Kafka.
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:29092,kafka-2:29093}
     ports:
       - "8082:8082"
+    networks:
+      - default
+      - kafka_net
 
   # Microservicio administrador de RabbitMQ: crea y elimina colas, exchanges y bindings por REST.
   # No usa base de datos; solo se conecta al clúster de RabbitMQ.
@@ -147,6 +153,12 @@ services:
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     ports:
       - "8083:8083"
+
+networks:
+  # Red compartida con Kafka. Se crea UNA vez por computador: docker network create kafka_net
+  kafka_net:
+    name: kafka_net
+    external: true
 
 volumes:
   pedidos360_pgdata:

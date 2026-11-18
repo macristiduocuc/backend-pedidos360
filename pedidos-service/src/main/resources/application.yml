@@ -22,6 +22,24 @@ spring:
         jwt:
           issuer-uri: https://login.microsoftonline.com/93cc35f5-cb03-4022-ad90-77cbe1ca3267/v2.0
 
+  # Conexión a Kafka. En Docker, SPRING_KAFKA_BOOTSTRAP_SERVERS (definido en docker-compose.yml) reemplaza este valor.
+  kafka:
+    bootstrap-servers: localhost:9092,localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # El mensaje viaja como JSON (el DTO PedidoEvento), igual que en RabbitMQ
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      # Se confirma cuando todas las réplicas sincronizadas lo recibieron
+      acks: all
+      properties:
+        "[enable.idempotence]": true
+        # Si Kafka no responde, el envío se abandona rápido: crear un pedido no debe quedarse esperando
+        "[max.block.ms]": 3000
+        "[request.timeout.ms]": 3000
+        "[delivery.timeout.ms]": 6000
+        # Sin información de la clase Java en el mensaje: otros microservicios lo leen con su propio DTO
+        "[spring.json.add.type.headers]": false
+
   # Conexión a RabbitMQ. En Docker, SPRING_RABBITMQ_ADDRESSES / _USERNAME / _PASSWORD
   # (definidos en docker-compose.yml) reemplazan estos valores.
   rabbitmq:
@@ -54,6 +72,11 @@ pedidos360:
 # colas, DLQ, bindings y routing keys. Ninguna clase Java tiene nombres escritos.
 # ---------------------------------------------------------------------------
 app:
+  # Nombres de los tópicos de Kafka (los crea kafka-admin-service). Ninguna clase Java los tiene escritos.
+  kafka:
+    topicos:
+      pedidos-eventos: pedidos.eventos
+
   mensajeria:
     exchange:
       principal: pedidos.exchange      # topic: eventos de negocio

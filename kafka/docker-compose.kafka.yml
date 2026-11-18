@@ -1,3 +1,11 @@
+# Clúster de Kafka de Pedidos 360: Zookeeper y 2 brokers.
+# Se levanta aparte del backend. La red kafka_net se crea UNA vez por computador:
+#   docker network create kafka_net
+#   docker compose -f kafka/docker-compose.kafka.yml up -d
+#
+# Listeners de cada broker:
+#   - kafka-1:29092 / kafka-2:29093  -> para contenedores que estén en la red kafka_net
+#   - localhost:9092 / localhost:9093 -> para quien se conecte desde el computador donde corre Docker
 name: kafka-stack
 
 services:
@@ -7,6 +15,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      # Memoria acotada: el clúster está pensado para un servidor de 2 GB (t3.small)
       KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
@@ -28,13 +37,16 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Con 2 brokers, los tópicos internos y los nuevos se replican en ambos
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_DEFAULT_REPLICATION_FACTOR: 2
       KAFKA_NUM_PARTITIONS: 3
+      # Los tópicos se crean a propósito (con kafka-admin-service o Kafka UI), con sus particiones y réplicas
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Memoria acotada para un servidor de 2 GB
       KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
       KAFKA_LOG_CLEANER_DEDUPE_BUFFER_SIZE: 33554432
     volumes:
@@ -72,9 +84,10 @@ services:
       - kafka_net
 
 networks:
+  # Red compartida con el backend y con los otros compose de Kafka (se crea aparte, ver arriba)
   kafka_net:
     name: kafka_net
-    driver: bridge
+    external: true
 
 volumes:
   zookeeper_data:
