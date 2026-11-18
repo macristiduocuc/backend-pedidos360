@@ -39,6 +39,21 @@ spring:
         "[delivery.timeout.ms]": 6000
         # Sin información de la clase Java en el mensaje: otros microservicios lo leen con su propio DTO
         "[spring.json.add.type.headers]": false
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # ErrorHandlingDeserializer: un mensaje ilegible no detiene al consumidor; llega como error controlado
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      # Un grupo nuevo empieza leyendo el historial completo del tópico
+      auto-offset-reset: earliest
+      # El offset lo confirma el contenedor después de procesar cada mensaje
+      enable-auto-commit: false
+      properties:
+        "[spring.deserializer.value.delegate.class]": org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        "[spring.json.value.default.type]": com.pedidos360.pedidos.event.PedidoEvento
+        "[spring.json.use.type.headers]": false
+        "[spring.json.trusted.packages]": com.pedidos360.pedidos.event
+    listener:
+      ack-mode: record
 
   # Conexión a RabbitMQ. En Docker, SPRING_RABBITMQ_ADDRESSES / _USERNAME / _PASSWORD
   # (definidos en docker-compose.yml) reemplazan estos valores.
@@ -76,6 +91,13 @@ app:
   kafka:
     topicos:
       pedidos-eventos: pedidos.eventos
+    # Consumer groups. Cada grupo recibe TODOS los mensajes del tópico; las instancias de un mismo grupo se reparten las particiones.
+    grupos:
+      auditoria: auditoria
+    # Política ante errores: se reintenta y, si sigue fallando, se registra en el log y se continúa con el siguiente mensaje.
+    consumidor:
+      max-intentos: 3
+      espera-reintento: 1s
 
   mensajeria:
     exchange:
