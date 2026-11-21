@@ -45,6 +45,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/productos").hasRole("AUDITORIA")
                 .requestMatchers(HttpMethod.PUT, "/api/productos/**").hasRole("AUDITORIA")
                 .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasRole("AUDITORIA")
+                // Analítica de ventas calculada desde Kafka
+                .requestMatchers(HttpMethod.GET, "/api/analitica/**").hasRole("AUDITORIA")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(conversorDeRoles())));
