@@ -23,7 +23,7 @@ class PedidoEventoKafkaPublisherTest {
     @SuppressWarnings("unchecked")
     private final KafkaTemplate<String, PedidoEvento> kafkaTemplate = mock(KafkaTemplate.class);
 
-    private final KafkaTopicosProperties topicos = new KafkaTopicosProperties("pedidos.eventos");
+    private final KafkaTopicosProperties topicos = new KafkaTopicosProperties("pedidos.eventos", "inventario.stock");
     private final PedidoEventoKafkaPublisher publisher = new PedidoEventoKafkaPublisher(kafkaTemplate, topicos);
 
     private PedidoEvento evento(PedidoEvento.Tipo tipo, String estado) {

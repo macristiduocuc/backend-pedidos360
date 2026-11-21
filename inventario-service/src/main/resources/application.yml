@@ -28,6 +28,19 @@ spring:
   # Conexión a Kafka. En Docker, SPRING_KAFKA_BOOTSTRAP_SERVERS (definido en docker-compose.yml) reemplaza este valor.
   kafka:
     bootstrap-servers: localhost:9092,localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # El mensaje viaja como JSON (el DTO StockActualizadoEvento)
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      properties:
+        "[enable.idempotence]": true
+        # Si Kafka no responde, el envío se abandona rápido: una compra no debe quedarse esperando
+        "[max.block.ms]": 3000
+        "[request.timeout.ms]": 3000
+        "[delivery.timeout.ms]": 6000
+        # Sin información de la clase Java en el mensaje: otros microservicios lo leen con su propio DTO
+        "[spring.json.add.type.headers]": false
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       # ErrorHandlingDeserializer: un mensaje ilegible no detiene al consumidor; llega como error controlado
@@ -100,6 +113,7 @@ app:
   kafka:
     topicos:
       pedidos-eventos: pedidos.eventos
+      inventario-stock: inventario.stock
     # Cada grupo recibe TODOS los mensajes del tópico (pedidos-service usa el grupo "auditoria" sobre el mismo tópico).
     grupos:
       analitica-ventas: analitica-ventas

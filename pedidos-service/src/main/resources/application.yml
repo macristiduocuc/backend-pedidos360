@@ -91,9 +91,11 @@ app:
   kafka:
     topicos:
       pedidos-eventos: pedidos.eventos
+      inventario-stock: inventario.stock
     # Consumer groups. Cada grupo recibe TODOS los mensajes del tópico; las instancias de un mismo grupo se reparten las particiones.
     grupos:
       auditoria: auditoria
+      stock-monitor: stock-monitor
     # Política ante errores: se reintenta y, si sigue fallando, se registra en el log y se continúa con el siguiente mensaje.
     consumidor:
       max-intentos: 3

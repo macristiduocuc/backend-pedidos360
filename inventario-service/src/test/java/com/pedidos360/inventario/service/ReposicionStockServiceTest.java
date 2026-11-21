@@ -2,6 +2,7 @@ package com.pedidos360.inventario.service;
 
 import com.pedidos360.inventario.event.PedidoEvento;
 import com.pedidos360.inventario.messaging.consumer.MensajeNoProcesableException;
+import com.pedidos360.inventario.model.Producto;
 import com.pedidos360.inventario.model.ReposicionProcesada;
 import com.pedidos360.inventario.repository.ProductoRepository;
 import com.pedidos360.inventario.repository.ReposicionProcesadaRepository;
@@ -11,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,7 +27,9 @@ class ReposicionStockServiceTest {
 
     private final ProductoRepository productoRepository = mock(ProductoRepository.class);
     private final ReposicionProcesadaRepository procesadaRepository = mock(ReposicionProcesadaRepository.class);
-    private final ReposicionStockService service = new ReposicionStockService(productoRepository, procesadaRepository);
+    private final StockService stockService = mock(StockService.class);
+    private final ReposicionStockService service =
+            new ReposicionStockService(productoRepository, procesadaRepository, stockService);
 
     private PedidoEvento evento(PedidoEvento.Tipo tipo, Long pedidoId, List<PedidoEvento.Item> items) {
         return new PedidoEvento(tipo, pedidoId, 3L, "Cancelado", new BigDecimal("1990.00"), Instant.now(), items);
@@ -81,5 +85,18 @@ class ReposicionStockServiceTest {
     void unEventoSinIdDePedidoEsIrrecuperable() {
         assertThrows(MensajeNoProcesableException.class,
                 () -> service.reponer(evento(PedidoEvento.Tipo.CANCELADO, null, items())));
+    }
+
+    @Test
+    void alReponerAnunciaElStockActualDeCadaProducto() {
+        Producto producto = new Producto();
+        producto.setId(11L);
+        when(productoRepository.reponerStock(11L, 2)).thenReturn(1);
+        when(productoRepository.findById(11L)).thenReturn(Optional.of(producto));
+        when(productoRepository.stockActual(11L)).thenReturn(20);
+
+        service.reponer(evento(PedidoEvento.Tipo.CANCELADO, 5L, List.of(new PedidoEvento.Item(11L, 2))));
+
+        verify(stockService).anunciarStock(producto, 20);
     }
 }

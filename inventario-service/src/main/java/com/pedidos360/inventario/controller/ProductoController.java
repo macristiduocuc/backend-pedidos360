@@ -63,6 +63,7 @@ public class ProductoController {
         aplicarRequest(producto, request);
         Producto guardado = productoRepository.save(producto);
         stockService.evaluarAlerta(guardado, null, guardado.getStock());
+        stockService.anunciarStock(guardado, guardado.getStock());
         return ProductoResponse.desde(guardado);
     }
 
@@ -74,6 +75,9 @@ public class ProductoController {
         aplicarRequest(producto, request);
         Producto guardado = productoRepository.save(producto);
         stockService.evaluarAlerta(guardado, stockAntes, guardado.getStock());
+        if (stockAntes != guardado.getStock()) {
+            stockService.anunciarStock(guardado, guardado.getStock());
+        }
         return ProductoResponse.desde(guardado);
     }
 

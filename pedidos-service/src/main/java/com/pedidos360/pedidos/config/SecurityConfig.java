@@ -51,6 +51,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/eventos-auditoria").hasRole("AUDITORIA")
                 // Historial de eventos guardado desde Kafka
                 .requestMatchers(HttpMethod.GET, "/api/auditoria-kafka").hasRole("AUDITORIA")
+                // Último stock de cada producto, recibido desde Kafka
+                .requestMatchers(HttpMethod.GET, "/api/stock-actual").hasRole("AUDITORIA")
                 // Notificaciones (campanita): el cliente ve las suyas y Auditoría ve las alertas de stock.
                 .requestMatchers("/api/notificaciones/**").hasAnyRole("CLIENTE", "AUDITORIA")
                 // Listados generales de pedidos: cocina, despacho y auditoría los necesitan cada uno para su panel.

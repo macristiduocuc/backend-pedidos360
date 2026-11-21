@@ -27,11 +27,14 @@ public class ReposicionStockService {
 
     private final ProductoRepository productoRepository;
     private final ReposicionProcesadaRepository procesadaRepository;
+    private final StockService stockService;
 
     public ReposicionStockService(ProductoRepository productoRepository,
-                                  ReposicionProcesadaRepository procesadaRepository) {
+                                  ReposicionProcesadaRepository procesadaRepository,
+                                  StockService stockService) {
         this.productoRepository = productoRepository;
         this.procesadaRepository = procesadaRepository;
+        this.stockService = stockService;
     }
 
     @Transactional
@@ -56,6 +59,9 @@ public class ReposicionStockService {
             if (filas == 0) {
                 throw new MensajeNoProcesableException("El producto " + item.productoId() + " no existe");
             }
+            // El stock cambió: se anuncia el valor actual (se publica en Kafka cuando la transacción se confirme)
+            productoRepository.findById(item.productoId()).ifPresent(producto ->
+                    stockService.anunciarStock(producto, productoRepository.stockActual(item.productoId())));
         }
 
         procesadaRepository.save(new ReposicionProcesada(evento.pedidoId()));

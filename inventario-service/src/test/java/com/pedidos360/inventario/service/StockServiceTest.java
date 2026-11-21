@@ -2,25 +2,28 @@ package com.pedidos360.inventario.service;
 
 import com.pedidos360.inventario.config.InventarioProperties;
 import com.pedidos360.inventario.event.AlertaStockEvento;
+import com.pedidos360.inventario.event.StockActualizadoEvento;
 import com.pedidos360.inventario.model.Local;
 import com.pedidos360.inventario.model.Producto;
 import com.pedidos360.inventario.repository.ProductoRepository;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.when;
 
-/** Comprueba cuándo la reserva de stock anuncia una alerta de stock bajo (umbral = 10). */
+/**
+ * Comprueba cuándo una reserva de stock anuncia una alerta de stock bajo (umbral = 10) y
+ * que cada cambio de stock anuncia el stock actual para Kafka.
+ */
 class StockServiceTest {
 
     private final ProductoRepository productoRepository = mock(ProductoRepository.class);
@@ -43,15 +46,31 @@ class StockServiceTest {
         when(productoRepository.stockActual(1L)).thenReturn(stockAntes - cantidad);
     }
 
+    private List<Object> publicados() {
+        return mockingDetails(eventPublisher).getInvocations().stream()
+                .filter(invocacion -> invocacion.getMethod().getName().equals("publishEvent"))
+                .map(invocacion -> (Object) invocacion.getArgument(0))
+                .toList();
+    }
+
+    private List<AlertaStockEvento> alertas() {
+        return publicados().stream().filter(AlertaStockEvento.class::isInstance).map(AlertaStockEvento.class::cast).toList();
+    }
+
+    private List<StockActualizadoEvento> stocks() {
+        return publicados().stream().filter(StockActualizadoEvento.class::isInstance).map(StockActualizadoEvento.class::cast).toList();
+    }
+
+    // ---- reservas (compras) ----
+
     @Test
     void siLaReservaCruzaElUmbralAnunciaLaAlerta() {
         productoConStockAntes(12, 3);
 
         service.reservar(1L, 3);
 
-        ArgumentCaptor<AlertaStockEvento> captor = ArgumentCaptor.forClass(AlertaStockEvento.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        AlertaStockEvento alerta = captor.getValue();
+        assertEquals(1, alertas().size());
+        AlertaStockEvento alerta = alertas().get(0);
         assertEquals(1L, alerta.productoId());
         assertEquals("Empanada de pino", alerta.nombreProducto());
         assertEquals(3L, alerta.localId());
@@ -60,12 +79,12 @@ class StockServiceTest {
     }
 
     @Test
-    void siSobraMuchoStockNoAnunciaNada() {
+    void siSobraMuchoStockNoAnunciaAlerta() {
         productoConStockAntes(30, 3);
 
         service.reservar(1L, 3);
 
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
+        assertTrue(alertas().isEmpty());
     }
 
     @Test
@@ -74,7 +93,7 @@ class StockServiceTest {
 
         service.reservar(1L, 2);
 
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
+        assertTrue(alertas().isEmpty());
     }
 
     @Test
@@ -83,9 +102,22 @@ class StockServiceTest {
 
         service.reservar(1L, 4);
 
-        ArgumentCaptor<AlertaStockEvento> captor = ArgumentCaptor.forClass(AlertaStockEvento.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertEquals(0, captor.getValue().stockActual());
+        assertEquals(1, alertas().size());
+        assertEquals(0, alertas().get(0).stockActual());
+    }
+
+    @Test
+    void cadaReservaAnunciaElStockActualParaKafka() {
+        productoConStockAntes(30, 3);
+
+        service.reservar(1L, 3);
+
+        assertEquals(1, stocks().size());
+        StockActualizadoEvento stock = stocks().get(0);
+        assertEquals(1L, stock.productoId());
+        assertEquals("Empanada de pino", stock.nombreProducto());
+        assertEquals(3L, stock.localId());
+        assertEquals(27, stock.stock());
     }
 
     @Test
@@ -96,47 +128,7 @@ class StockServiceTest {
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.reservar(1L, 5));
 
         assertEquals(409, error.getStatusCode().value());
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
-    }
-
-    // ---- cambios hechos por Auditoría en la gestión de inventario ----
-
-    @Test
-    void siAuditoriaBajaElStockPorDebajoDelUmbralSeAnunciaLaAlerta() {
-        service.evaluarAlerta(producto(), 15, 9);
-
-        ArgumentCaptor<AlertaStockEvento> captor = ArgumentCaptor.forClass(AlertaStockEvento.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertEquals(9, captor.getValue().stockActual());
-        assertEquals(1L, captor.getValue().productoId());
-    }
-
-    @Test
-    void siSoloSeEditaOtroDatoYElStockNoCambiaNoSeAnunciaNada() {
-        service.evaluarAlerta(producto(), 5, 5);
-
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
-    }
-
-    @Test
-    void siAuditoriaSubeElStockNoSeAnunciaNada() {
-        service.evaluarAlerta(producto(), 4, 20);
-
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
-    }
-
-    @Test
-    void unProductoNuevoConPocoStockAnunciaLaAlerta() {
-        service.evaluarAlerta(producto(), null, 6);
-
-        verify(eventPublisher).publishEvent(any(AlertaStockEvento.class));
-    }
-
-    @Test
-    void unProductoNuevoConMuchoStockNoAnunciaNada() {
-        service.evaluarAlerta(producto(), null, 50);
-
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
+        assertTrue(publicados().isEmpty());
     }
 
     @Test
@@ -146,5 +138,55 @@ class StockServiceTest {
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.reservar(99L, 1));
 
         assertEquals(404, error.getStatusCode().value());
+    }
+
+    // ---- cambios hechos por Auditoría en la gestión de inventario ----
+
+    @Test
+    void siAuditoriaBajaElStockPorDebajoDelUmbralSeAnunciaLaAlerta() {
+        service.evaluarAlerta(producto(), 15, 9);
+
+        assertEquals(1, alertas().size());
+        assertEquals(9, alertas().get(0).stockActual());
+        assertEquals(1L, alertas().get(0).productoId());
+    }
+
+    @Test
+    void siSoloSeEditaOtroDatoYElStockNoCambiaNoSeAnunciaNada() {
+        service.evaluarAlerta(producto(), 5, 5);
+
+        assertTrue(alertas().isEmpty());
+    }
+
+    @Test
+    void siAuditoriaSubeElStockNoSeAnunciaAlerta() {
+        service.evaluarAlerta(producto(), 4, 20);
+
+        assertTrue(alertas().isEmpty());
+    }
+
+    @Test
+    void unProductoNuevoConPocoStockAnunciaLaAlerta() {
+        service.evaluarAlerta(producto(), null, 6);
+
+        assertEquals(1, alertas().size());
+    }
+
+    @Test
+    void unProductoNuevoConMuchoStockNoAnunciaAlerta() {
+        service.evaluarAlerta(producto(), null, 50);
+
+        assertTrue(alertas().isEmpty());
+    }
+
+    // ---- anuncio del stock actual ----
+
+    @Test
+    void anunciarStockPublicaElEventoConLosDatosDelProducto() {
+        service.anunciarStock(producto(), 18);
+
+        assertEquals(1, stocks().size());
+        assertEquals(18, stocks().get(0).stock());
+        assertEquals("Empanada de pino", stocks().get(0).nombreProducto());
     }
 }
