@@ -5,7 +5,9 @@
 #
 # Listeners de cada broker:
 #   - kafka-1:29092 / kafka-2:29093  -> para contenedores que estén en la red kafka_net
-#   - localhost:9092 / localhost:9093 -> para quien se conecte desde el computador donde corre Docker
+#   - ${BROKER_HOST}:9092 / ${BROKER_HOST}:9093 -> para quien se conecte desde fuera de Docker.
+#     En el computador no hace falta definir nada (usa localhost). En AWS, BROKER_HOST es la IP PRIVADA
+#     de la instancia de Kafka, y se pasa con:  docker compose --env-file ~/kafka.env -f kafka/docker-compose.kafka.yml up -d
 name: kafka-stack
 
 services:
@@ -34,7 +36,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:29092,PLAINTEXT_HOST://${BROKER_HOST:-localhost}:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       # Con 2 brokers, los tópicos internos y los nuevos se replican en ambos
@@ -65,7 +67,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 2
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:29093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:29093,PLAINTEXT_HOST://${BROKER_HOST:-localhost}:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
