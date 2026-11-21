@@ -24,4 +24,6 @@ jobs:
             rm -rf ~/backend-pedidos360
             git clone --branch develop https://github.com/macristiduocuc/backend-pedidos360.git ~/backend-pedidos360
             cd ~/backend-pedidos360
+            # Red compartida con Kafka (pedidos e inventario se unen a ella). Se crea solo si no existe.
+            docker network inspect kafka_net >/dev/null 2>&1 || docker network create kafka_net
             docker compose --env-file ~/pedidos360.env up -d --build
