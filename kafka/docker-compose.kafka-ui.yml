@@ -1,0 +1,20 @@
+name: kafka-ui
+
+services:
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pedidos360-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-1:29092,kafka-2:29093
+      JAVA_OPTS: "-Xmx256m -Xms256m"
+    restart: unless-stopped
+    networks:
+      - kafka_net
+
+networks:
+  kafka_net:
+    name: kafka_net
+    external: true

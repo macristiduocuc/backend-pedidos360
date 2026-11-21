@@ -25,6 +25,37 @@ spring:
         jwt:
           issuer-uri: https://login.microsoftonline.com/93cc35f5-cb03-4022-ad90-77cbe1ca3267/v2.0
 
+  # Conexión a Kafka. En Docker, SPRING_KAFKA_BOOTSTRAP_SERVERS (definido en docker-compose.yml) reemplaza este valor.
+  kafka:
+    bootstrap-servers: localhost:9092,localhost:9093
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # El mensaje viaja como JSON (el DTO StockActualizadoEvento)
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      properties:
+        "[enable.idempotence]": true
+        # Si Kafka no responde, el envío se abandona rápido: una compra no debe quedarse esperando
+        "[max.block.ms]": 3000
+        "[request.timeout.ms]": 3000
+        "[delivery.timeout.ms]": 6000
+        # Sin información de la clase Java en el mensaje: otros microservicios lo leen con su propio DTO
+        "[spring.json.add.type.headers]": false
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # ErrorHandlingDeserializer: un mensaje ilegible no detiene al consumidor; llega como error controlado
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      # Un grupo nuevo empieza leyendo el historial completo del tópico
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        "[spring.deserializer.value.delegate.class]": org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        "[spring.json.value.default.type]": com.pedidos360.inventario.event.PedidoEvento
+        "[spring.json.use.type.headers]": false
+        "[spring.json.trusted.packages]": com.pedidos360.inventario.event
+    listener:
+      ack-mode: record
+
   # Conexión a RabbitMQ. En Docker, SPRING_RABBITMQ_ADDRESSES / _USERNAME / _PASSWORD
   # (definidos en docker-compose.yml) reemplazan estos valores.
   rabbitmq:
@@ -77,3 +108,16 @@ app:
     # del producto (ejemplo: stock.bajo.local3).
     routing-key:
       stock-bajo: stock.bajo.local{localId}
+
+  # Kafka: nombres de tópicos y consumer groups. Ninguna clase Java los tiene escritos.
+  kafka:
+    topicos:
+      pedidos-eventos: pedidos.eventos
+      inventario-stock: inventario.stock
+    # Cada grupo recibe TODOS los mensajes del tópico (pedidos-service usa el grupo "auditoria" sobre el mismo tópico).
+    grupos:
+      analitica-ventas: analitica-ventas
+    # Política ante errores: se reintenta y, si sigue fallando, se registra en el log y se continúa.
+    consumidor:
+      max-intentos: 3
+      espera-reintento: 1s

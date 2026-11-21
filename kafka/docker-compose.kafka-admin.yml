@@ -1,0 +1,24 @@
+# Administrador de Kafka (kafka-admin-service). Se levanta DESPUÉS del clúster, porque usa su red:
+#   docker compose -f kafka/docker-compose.kafka.yml up -d
+#   docker compose -f kafka/docker-compose.kafka-admin.yml up -d --build
+# API: http://localhost:8084/api/topics  (requiere el JWT de Azure con rol AUDITORIA)
+name: kafka-admin
+
+services:
+  kafka-admin:
+    build: ../kafka-admin-service
+    container_name: kafka-admin
+    restart: unless-stopped
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:29092,kafka-2:29093
+      # Memoria acotada, para que quepa en un servidor de 2 GB junto con el clúster
+      JAVA_TOOL_OPTIONS: "-Xmx192m"
+    ports:
+      - "8084:8084"
+    networks:
+      - kafka_net
+
+networks:
+  kafka_net:
+    name: kafka_net
+    external: true

@@ -2,6 +2,7 @@ package com.pedidos360.inventario.service;
 
 import com.pedidos360.inventario.config.InventarioProperties;
 import com.pedidos360.inventario.event.AlertaStockEvento;
+import com.pedidos360.inventario.event.StockActualizadoEvento;
 import com.pedidos360.inventario.model.Producto;
 import com.pedidos360.inventario.repository.ProductoRepository;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,6 +47,16 @@ public class StockService {
 
         int stockDespues = productoRepository.stockActual(producto.getId());
         evaluarAlerta(producto, stockDespues + cantidad, stockDespues);
+        anunciarStock(producto, stockDespues);
+    }
+
+    /**
+     * Anuncia el stock actual de un producto (sin conocer Kafka: quien lo publica es StockKafkaPublisher,
+     * tras el commit). Se usa en cada cambio de stock: compra, reposición y edición de Auditoría.
+     */
+    public void anunciarStock(Producto producto, int stockActual) {
+        eventPublisher.publishEvent(new StockActualizadoEvento(
+                producto.getId(), producto.getNombre(), producto.getLocal().getId(), stockActual, Instant.now()));
     }
 
     /**
